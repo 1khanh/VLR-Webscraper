@@ -1,0 +1,80 @@
+import requests
+import pandas as pd
+from bs4 import BeautifulSoup
+import openpyxl
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
+
+url = 'https://www.vlr.gg/rankings/north-america'
+response = requests.get(url)
+
+soup = BeautifulSoup(response.content, 'html.parser')
+
+team_div = soup.find('div', class_='mod-scroll')
+team_items = team_div.find_all('div', class_='rank-item')
+
+data = []
+for i, team in enumerate(team_items[:1]):
+    team_rank = team.find('div', class_='rank-item-rank-num').get_text(strip=True)
+    team_name_elem = team.find('div', class_='ge-text')
+
+    for span in team_name_elem.find_all('span'):
+        span.extract()
+
+    for country in team_name_elem.find_all(class_='rank-item-team-country'):
+        country.extract()
+
+    team_name = team_name_elem.get_text(strip=True)
+    team_href = team.find('a', class_='rank-item-team')
+    href = 'https://www.vlr.gg' + team_href.get('href')
+    team_response = requests.get(href)
+    team_soup = BeautifulSoup(team_response.content, 'html.parser')
+    
+    team_igl = ''
+    managers = []
+    coaches = []
+    players = []
+    team_roster = team_soup.find_all('div', class_='team-roster-item-name')
+
+    for player in team_roster:
+        alias = player.find('div', class_='team-roster-item-name-alias')
+        if alias is not None:
+            player_name = alias.text.strip()
+        else:
+            player_name = player.text.strip()
+
+        role = player.find('div', class_='team-roster-item-name-role')
+        
+        if role is not None:
+            role_text = role.text.strip()
+            if 'coach' in role_text.lower():
+                coaches.append(player_name)
+                continue
+            elif 'manager' in role_text.lower():
+                managers.append(player_name)
+                continue
+
+        if player.find('i', class_='fa-star') is not None:
+            team_igl = player_name
+        else:
+            players.append(player_name)
+
+    data.append([team_rank, team_name, team_igl, players, managers, coaches, href])
+
+df = pd.DataFrame(data, columns=['Rank', 'Team', 'Team Leader', 'Players', 'Manager', 'Coach(es)','Link'])
+# df.to_excel('vlr.xlsx', index=False)
+print(df)
+
+#find player pages
+
+    player_href = team_soup.find('div', class_='team-roster-item')
+    player_url = 'https://www.vlr.gg' + player_href.find('a').get('href')
+    print(player_url)
+
+Total Rounds Played
+ACS
+KDA
+Econ Rating -> ADR
+First Bloods
+First Deaths
